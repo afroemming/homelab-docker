@@ -1,0 +1,176 @@
+---
+version: "3.9"
+########################### NETWORKS
+networks:
+  default:
+    driver: bridge
+  proxy:
+    name: proxy
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.90.0/24
+
+########################### EXTENSION FIELDS
+# Helps eliminate repetition of sections
+ 
+# Common environment values
+x-environment: &default-tz-puid-pgid
+  TZ: $TZ
+  PUID: $PUID
+  PGID: $PGID
+ 
+# Keys common to some of the core services that we always to automatically restart on failure
+x-common-keys-core: &common-keys-core
+  networks:
+    - proxy
+  security_opt:
+    - no-new-privileges:true
+  restart: always
+ 
+# Keys common to some of the dependent services/apps
+x-common-keys-apps: &common-keys-apps
+  networks:
+    - proxy
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+ 
+# Keys common to some of the services in media-services.txt
+x-common-keys-media: &common-keys-media
+  networks:
+    - proxy
+  security_opt:
+    - no-new-privileges:true
+  restart: "no"
+
+########################### SERVICES
+services:
+########################### FRONTENDS
+# Traefik 2 - Reverse Proxy
+  traefik:
+    <<: *common-keys-core # See EXTENSION FIELDS at the top
+    image: traefik:2.9
+    environment:
+      - TZ=$TZ
+      - CF_API_EMAIL_FILE=/run/secrets/cloudflare_email
+      - CF_API_KEY_FILE=/run/secrets/cloudflare_api_key
+      - DOMAINNAME
+    secrets:
+      - cloudflare_email
+      - cloudflare_api_key
+      - htpasswd
+    ports:
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: host  
+    volumes:
+      - $CONFIGDIR/traefik-rules:/rules # file provider directory
+      - $DOCKERDIR/appdata/traefik/acme/acme.json:/acme.json # cert location - you must create this empty file and change permissions to 600
+      - $DOCKERDIR/logs/access.log:/logs/access.log
+      - $DOCKERDIR/logs/traefik.log:/logs/traefik.log
+      - $CONFIGDIR/traefik.yml:/etc/traefik/traefik.yml
+      - /var/run/docker.sock:/var/run/docker.sock:ro # If you use Docker Socket Proxy, comment this line out
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.http-catchall.entrypoints=http"
+      - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
+      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.traefik-rtr.entrypoints=https"
+      - "traefik.http.routers.traefik-rtr.rule=Host(`traefik.$DOMAINNAME`)"
+      - "traefik.http.routers.traefik-rtr.tls=true" # Some people had 404s without this
+      #- "traefik.http.routers.traefik-rtr.tls.certresolver=dns-cloudflare" # Comment out this line after first run of traefik to force the use of wildcard certs
+      - "traefik.http.routers.traefik-rtr.tls.domains[0].main=$DOMAINNAME"
+      - "traefik.http.routers.traefik-rtr.tls.domains[0].sans=*.$DOMAINNAME"
+      # Services - API
+      - "traefik.http.routers.traefik-rtr.service=api@internal"
+      ## Middlewares
+      - "traefik.http.routers.traefik-rtr.middlewares=chain-authelia-auth@file"
+
+  # Authelia (Lite) - Self-Hosted Single Sign-On and Two-Factor Authentication
+  authelia:
+    <<: *common-keys-core
+    image: authelia/authelia:latest
+    restart: always
+    networks:
+      - proxy
+    volumes:
+      - $APPDATA/authelia/:/persist/
+      - $CONFIGDIR/authelia.yml:/config/configuration.yml
+      - $APPDATA/authelia/users_database.yml:/config/users_database.yml
+      - $DOCKERDIR/appdata/authelia:/config
+      - $DOCKERDIR/logs/authelia.log:/authelia.log
+    environment:
+      - TZ=$TZ
+      - AUTHELIA_JWT_SECRET_FILE=/run/secrets/authelia_jwt_secret
+      - AUTHELIA_SESSION_SECRET_FILE=/run/secrets/authelia_session_secret
+      - AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE=/run/secrets/smtp_password
+      - AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE=/run/secrets/authelia_storage_encryption_key_file
+    secrets:
+      - authelia_jwt_secret
+      - authelia_session_secret
+      - authelia_storage_encryption_key_file
+      - smtp_password
+    labels:
+      - "traefik.enable=true"
+      ## HTTP Routers
+      - "traefik.http.routers.authelia-rtr.entrypoints=https"
+      - "traefik.http.routers.authelia-rtr.rule=HostHeader(`authelia.$DOMAINNAME`)"
+      ## Middlewares
+      - "traefik.http.routers.authelia-rtr.middlewares=chain-authelia-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.authelia-rtr.service=authelia-svc"
+      - "traefik.http.services.authelia-svc.loadbalancer.server.port=9091"
+
+  # Portainer
+  portainer:
+    <<: *common-keys-core
+    image: portainer/portainer-ce:latest
+    volumes:
+      - $DOCKERDIR/appdata/portainer:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    labels:
+    - "traefik.enable=true"
+    ## HTTP Routers
+    - "traefik.http.routers.portainer-rtr.entrypoints=https"
+    - "traefik.http.routers.portainer-rtr.rule=HostHeader(`portainer.$DOMAINNAME`)"
+    ## Middlewares
+    - "traefik.http.routers.portainer-rtr.middlewares=chain-authelia-auth@file"
+    ## HTTP Services
+    - "traefik.http.routers.portainer-rtr.service=portainer-svc"
+    - "traefik.http.services.portainer-svc.loadbalancer.server.port=9000"
+  
+
+########################### SECRETS
+secrets:
+  cloudflare_email:
+    file: $SECRETSDIR/cloudflare_email
+  cloudflare_api_key:
+    file: $SECRETSDIR/cloudflare_api_key
+  htpasswd:
+    file: $SECRETSDIR/.htpasswd
+  authelia_session_secret:
+    file: $SECRETSDIR/authelia_session_secret
+  authelia_jwt_secret:
+    file: $SECRETSDIR/authelia_jwt_secret
+  smtp_password:
+    file: $SECRETSDIR/smtp_password
+  authelia_storage_encryption_key_file:
+    file: $SECRETSDIR/authelia_storage_encryption_key_file
+  
+
+########################### VOLUMES
+# volumes:
+#   nfs-share: 
+#     driver: local
+#     driver_opts:
+#       type: nfs
+#       o: "addr=192.168.0.2,nolock,soft,rw"
+#       device: ":/volume1/share"
