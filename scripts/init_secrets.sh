@@ -6,6 +6,10 @@ mkdir $SECRETSDIR
 openssl rand -hex 64 > $SECRETSDIR/authelia_jwt_secret
 openssl rand -hex 64 > $SECRETSDIR/authelia_session_secret
 openssl rand -hex 64 > $SECRETSDIR/authelia_storage_encryption_key_file
+openssl rand -hex 64 > $SECRETSDIR/ldap_jwt_secret
+openssl rand -hex 64 > $SECRETSDIR/ldap_user_pass
+
+touch $SECRETSDIR/acme.json
 
 printf "htppaswd\n"
 htpasswd -c $SECRETSDIR/.htpasswd $BASICAUTHUSER

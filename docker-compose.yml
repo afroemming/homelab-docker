@@ -71,7 +71,7 @@ services:
         mode: host  
     volumes:
       - $CONFIGDIR/traefik-rules:/rules # file provider directory
-      - $DOCKERDIR/appdata/traefik/acme/acme.json:/acme.json # cert location - you must create this empty file and change permissions to 600
+      - $SECRETSDIR/acme.json:/acme.json # cert location - you must create this empty file and change permissions to 600
       - $DOCKERDIR/logs/access.log:/logs/access.log
       - $DOCKERDIR/logs/traefik.log:/logs/traefik.log
       - $CONFIGDIR/traefik.yml:/etc/traefik/traefik.yml
@@ -112,11 +112,13 @@ services:
       - AUTHELIA_SESSION_SECRET_FILE=/run/secrets/authelia_session_secret
       - AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE=/run/secrets/smtp_password
       - AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE=/run/secrets/authelia_storage_encryption_key_file
+      - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE=/run/secrets/ldap_user_pass
     secrets:
       - authelia_jwt_secret
       - authelia_session_secret
       - authelia_storage_encryption_key_file
       - smtp_password
+      - ldap_user_pass
     labels:
       - "traefik.enable=true"
       ## HTTP Routers
@@ -128,25 +130,35 @@ services:
       - "traefik.http.routers.authelia-rtr.service=authelia-svc"
       - "traefik.http.services.authelia-svc.loadbalancer.server.port=9091"
 
-  # Portainer
-  portainer:
+  # lldap
+  lldap:
     <<: *common-keys-core
-    image: portainer/portainer-ce:latest
-    volumes:
-      - $DOCKERDIR/appdata/portainer:/data
-      - /var/run/docker.sock:/var/run/docker.sock
+    container_name: lldap
+    hostname: lldap
+    image: nitnelave/lldap:stable
     restart: unless-stopped
+    expose:
+      - 3890   # LDAP
+      - 17170  # Web UI
+    env_file:
+      - $CONFIGDIR/lldap-vars.env
+    volumes:
+      - $APPDATA/lldap:/data
+      - $SECRETSDIR/lldap:/secrets
+    secrets:
+      - ldap_jwt_secret
+      - ldap_user_pass
     labels:
-    - "traefik.enable=true"
-    ## HTTP Routers
-    - "traefik.http.routers.portainer-rtr.entrypoints=https"
-    - "traefik.http.routers.portainer-rtr.rule=HostHeader(`portainer.$DOMAINNAME`)"
-    ## Middlewares
-    - "traefik.http.routers.portainer-rtr.middlewares=chain-authelia-auth@file"
-    ## HTTP Services
-    - "traefik.http.routers.portainer-rtr.service=portainer-svc"
-    - "traefik.http.services.portainer-svc.loadbalancer.server.port=9000"
-  
+      - "traefik.enable=true"
+      ## HTTP Routers
+      - "traefik.http.routers.lldap-rtr.entrypoints=https"
+      - "traefik.http.routers.lldap-rtr.rule=HostHeader(`lldap.$DOMAINNAME`)"
+      ## Middlewares
+      - "traefik.http.routers.lldap-rtr.middlewares=chain-no-auth@file"
+      ## HTTP Services
+      - "traefik.http.routers.lldap-rtr.service=lldap-svc"
+      - "traefik.http.services.lldap-svc.loadbalancer.server.port=17170"
+
 
 ########################### SECRETS
 secrets:
@@ -164,6 +176,12 @@ secrets:
     file: $SECRETSDIR/smtp_password
   authelia_storage_encryption_key_file:
     file: $SECRETSDIR/authelia_storage_encryption_key_file
+  ldap_jwt_secret:
+    file: $SECRETSDIR/ldap_jwt_secret
+  ldap_user_pass:
+    file: $SECRETSDIR/ldap_user_pass
+  
+  
   
 
 ########################### VOLUMES
