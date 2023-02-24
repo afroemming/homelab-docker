@@ -43,7 +43,7 @@ providers:
   docker:
     endpoint: "tcp://socket-proxy:2375" # Use this instead of the previous line if you have socket proxy.
     exposedByDefault: false
-    network: socket
+    network: docker-www_default
   file:
     directory: /rules # Load dynamic configuration from one or more .toml or .yml files in a directory
     watch: true # Only works on top level files in the rules folder
