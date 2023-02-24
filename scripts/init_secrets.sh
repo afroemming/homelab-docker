@@ -1,10 +1,13 @@
 #! /bin/bash
-source ./.env
+cd "${0%/*}"
+source ../.env
 
+mkdir $SECRETSDIR
 openssl rand -hex 64 > $SECRETSDIR/authelia_jwt_secret
 openssl rand -hex 64 > $SECRETSDIR/authelia_session_secret
 openssl rand -hex 64 > $SECRETSDIR/authelia_storage_encryption_key_file
 
+printf "htppaswd\n"
 htpasswd -c $SECRETSDIR/.htpasswd $BASICAUTHUSER
 
 printf 'cloudflare email:\n'

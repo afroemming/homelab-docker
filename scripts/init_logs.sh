@@ -1,6 +1,9 @@
 
 #! /bin/bash
-mkdir logs
-touch logs/access.log  
-touch logs/authelia.log  
-touch logs/traefik.log
+cd "${0%/*}"
+source ../.env
+
+mkdir $LOGDIR
+touch $LOGDIR/access.log  
+touch $LOGDIR/authelia.log  
+touch $LOGDIR/traefik.log
