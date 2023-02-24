@@ -104,7 +104,7 @@ services:
   # Authelia (Lite) - Self-Hosted Single Sign-On and Two-Factor Authentication
   authelia:
     <<: *common-keys-core
-    image: authelia/authelia:latest
+    image: ghcr.io/authelia/authelia:4.37.5
     restart: always
     volumes:
       - $APPDATA/authelia/:/persist/
@@ -160,19 +160,20 @@ services:
       - "traefik.http.routers.lldap-rtr.entrypoints=https"
       - "traefik.http.routers.lldap-rtr.rule=Host(`lldap.$DOMAINNAME`)"
       ## Middlewares
-      - "traefik.http.routers.lldap-rtr.middlewares=chain-no-auth@file"
+      - "traefik.http.routers.lldap-rtr.middlewares=chain-authelia-auth@file"
       ## HTTP Services
       - "traefik.http.routers.lldap-rtr.service=lldap-svc"
       - "traefik.http.services.lldap-svc.loadbalancer.server.port=17170"
 
+  # Dashy - dashboard
   dashy:
     <<: *common-keys-apps
     # To build from source, replace 'image: lissy93/dashy' with 'build: .'
     # build: .
     image: lissy93/dashy
     # Pass in your config file below, by specifying the path on your host machine
-    # volumes:
-      # - /root/my-config.yml:/app/public/conf.yml
+    volumes:
+      - $APPDATA/dashy:/app/public/
     # Set any environmental variables
     environment:
       - NODE_ENV=production
@@ -196,6 +197,50 @@ services:
       - "traefik.http.routers.dashy-rtr.service=dashy-svc"
       - "traefik.http.services.dashy-svc.loadbalancer.server.port=80"
 
+  # gluetun - vpn client
+  gluetun:
+    <<: *common-keys-apps
+    image: qmcgaw/gluetun
+    # container_name: gluetun
+    # line above must be uncommented to allow external containers to connect. See https://github.com/qdm12/gluetun/wiki/Connect-a-container-to-gluetun#external-container-to-gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - /appdata/gluetun:/gluetun
+    environment:
+      # See https://github.com/qdm12/gluetun/wiki
+      - VPN_SERVICE_PROVIDER=surfshark
+      - VPN_TYPE=openvpn
+    secrets:
+      - openvpn_user
+      - openvpn_password
+    expose: 
+      - 8080
+    labels:
+      - "traefik.enable=true"
+      ## qbittorent
+      - "traefik.http.routers.qbittorrent-rtr.entrypoints=https"
+      - "traefik.http.routers.qbittorrent-rtr.rule=Host(`qbittorrent.$DOMAINNAME`)"
+      - "traefik.http.routers.qbittorrent-rtr.middlewares=chain-authelia-auth@file"
+      - "traefik.http.routers.qbittorrent-rtr.service=qbittorrent-svc"
+      - "traefik.http.services.qbittorrent-svc.loadbalancer.server.port=8080"
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - WEBUI_PORT=8080
+    volumes:
+      - $APPDATA/qbittorrent:/config
+      - nfs-share:/share
+    network_mode: "service:gluetun"
+    restart: unless-stopped
+
+
+
+
 ########################### SECRETS
 secrets:
   cloudflare_email:
@@ -216,15 +261,16 @@ secrets:
     file: $SECRETSDIR/ldap_jwt_secret
   ldap_user_pass:
     file: $SECRETSDIR/ldap_user_pass
-  
-  
-  
+  openvpn_user:
+    file: $SECRETSDIR/openvpn_user
+  openvpn_password:
+    file: $SECRETSDIR/openvpn_pass
 
 ########################### VOLUMES
-# volumes:
-#   nfs-share: 
-#     driver: local
-#     driver_opts:
-#       type: nfs
-#       o: "addr=192.168.0.2,nolock,soft,rw"
-#       device: ":/volume1/share"
+volumes:
+  nfs-share: 
+    driver: local
+    driver_opts:
+      type: nfs
+      o: "addr=192.168.0.2,nolock,soft,rw"
+      device: ":/volume1/share"

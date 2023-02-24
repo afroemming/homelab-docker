@@ -26,5 +26,14 @@ printf 'smtp password:\n'
 read -s SMTPPASS
 echo "$SMTPPASS" > $SECRETSDIR/smtp_password
 
+printf 'openvpn user:\n'
+read -s VPNUSER
+echo "$VPNUSER" > $SECRETSDIRS/openvpn_user
+
+printf 'openvpn pass:\n'
+read -s VPNPASS
+echo "$VPNPASS" > $SECRETSDIRS/openvpn_pass
+
+
 chown -R root:root $SECRETSDIR
 chmod -R 600 $SECRETSDIR
