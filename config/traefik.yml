@@ -41,11 +41,9 @@ entryPoints:
 
 providers:
   docker:
-    endpoint: unix://var/run/docker.sock # Use Docker Socket Proxy instead for improved security
-    #endpoint: tcp://socket-proxy:2375 # Use this instead of the previous line if you have socket proxy.
+    endpoint: "tcp://socket-proxy:2375" # Use this instead of the previous line if you have socket proxy.
     exposedByDefault: false
-    network: proxy
-    swarmMode: false
+    network: socket
   file:
     directory: /rules # Load dynamic configuration from one or more .toml or .yml files in a directory
     watch: true # Only works on top level files in the rules folder

@@ -4,12 +4,8 @@ version: "3.9"
 networks:
   default:
     driver: bridge
-  proxy:
-    name: proxy
+  socket:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 192.168.90.0/24
 
 ########################### EXTENSION FIELDS
 # Helps eliminate repetition of sections
@@ -22,8 +18,7 @@ x-environment: &default-tz-puid-pgid
  
 # Keys common to some of the core services that we always to automatically restart on failure
 x-common-keys-core: &common-keys-core
-  networks:
-    - proxy
+
   security_opt:
     - no-new-privileges:true
   restart: always
@@ -31,26 +26,40 @@ x-common-keys-core: &common-keys-core
 # Keys common to some of the dependent services/apps
 x-common-keys-apps: &common-keys-apps
   networks:
-    - proxy
+    -default
   security_opt:
     - no-new-privileges:true
   restart: unless-stopped
  
 # Keys common to some of the services in media-services.txt
 x-common-keys-media: &common-keys-media
-  networks:
-    - proxy
   security_opt:
     - no-new-privileges:true
   restart: "no"
 
 ########################### SERVICES
 services:
+########################### BACKENDS
+  socket-proxy:
+    environment:
+      CONTAINERS: 1
+    image: tecnativa/docker-socket-proxy
+    networks:
+      - socket
+    ports:
+      - 2375
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
 ########################### FRONTENDS
 # Traefik 2 - Reverse Proxy
   traefik:
     <<: *common-keys-core # See EXTENSION FIELDS at the top
     image: traefik:2.9
+    depends_on:
+      - socket-proxy
+    networks:
+      - default
+      - socket
     environment:
       - TZ=$TZ
       - CF_API_EMAIL_FILE=/run/secrets/cloudflare_email
@@ -75,7 +84,6 @@ services:
       - $DOCKERDIR/logs/access.log:/logs/access.log
       - $DOCKERDIR/logs/traefik.log:/logs/traefik.log
       - $CONFIGDIR/traefik.yml:/etc/traefik/traefik.yml
-      - /var/run/docker.sock:/var/run/docker.sock:ro # If you use Docker Socket Proxy, comment this line out
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.http-catchall.entrypoints=http"
@@ -98,8 +106,6 @@ services:
     <<: *common-keys-core
     image: authelia/authelia:latest
     restart: always
-    networks:
-      - proxy
     volumes:
       - $APPDATA/authelia/:/persist/
       - $CONFIGDIR/authelia.yml:/config/configuration.yml
