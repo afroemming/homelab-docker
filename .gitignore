@@ -1,4 +1,8 @@
-appdata
+appdata/*
+!appdata/dashy
+appdata/dashy/*
+!appdata/dashy/conf.yml
+
 secrets
 logs
 .vscode
