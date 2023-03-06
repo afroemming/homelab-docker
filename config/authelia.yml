@@ -8,8 +8,7 @@ server:
 default_redirection_url: https://melondrop.net/
 
 log: 
-  level: warn
-  file_path: /authelia.log
+  level: info
 
 
 totp:

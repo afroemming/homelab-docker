@@ -7,7 +7,6 @@ api:
   dashboard: true
 
 log:
-  filePath: /logs/traefik.log
   level: INFO
 
 accessLog:

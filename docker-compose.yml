@@ -81,7 +81,6 @@ services:
       - $CONFIGDIR/traefik-rules:/rules # file provider directory
       - $SECRETSDIR/acme.json:/acme.json # cert location - you must create this empty file and change permissions to 600
       - $DOCKERDIR/logs/access.log:/logs/access.log
-      - $DOCKERDIR/logs/traefik.log:/logs/traefik.log
       - $CONFIGDIR/traefik.yml:/etc/traefik/traefik.yml
     labels:
       - "traefik.enable=true"
@@ -110,7 +109,6 @@ services:
       - $CONFIGDIR/authelia.yml:/config/configuration.yml
       - $APPDATA/authelia/users_database.yml:/config/users_database.yml
       - $DOCKERDIR/appdata/authelia:/config
-      - $DOCKERDIR/logs/authelia.log:/authelia.log
     environment:
       - TZ=$TZ
       - AUTHELIA_JWT_SECRET_FILE=/run/secrets/authelia_jwt_secret
