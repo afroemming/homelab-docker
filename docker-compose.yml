@@ -68,7 +68,6 @@ services:
     secrets:
       - cloudflare_email
       - cloudflare_api_key
-      - htpasswd
     ports:
       - target: 80
         published: 80
@@ -247,8 +246,6 @@ secrets:
     file: $SECRETSDIR/cloudflare_email
   cloudflare_api_key:
     file: $SECRETSDIR/cloudflare_api_key
-  htpasswd:
-    file: $SECRETSDIR/.htpasswd
   authelia_session_secret:
     file: $SECRETSDIR/authelia_session_secret
   authelia_jwt_secret:
