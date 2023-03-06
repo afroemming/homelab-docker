@@ -79,7 +79,7 @@ services:
         mode: host  
     volumes:
       - $CONFIGDIR/traefik-rules:/rules # file provider directory
-      - $SECRETSDIR/acme.json:/acme.json # cert location - you must create this empty file and change permissions to 600
+      - $DOCKERDIR/acme/acme.json:/acme.json # cert location - you must create this empty file and change permissions to 600
       - $DOCKERDIR/logs/access.log:/logs/access.log
       - $CONFIGDIR/traefik.yml:/etc/traefik/traefik.yml
     labels:
